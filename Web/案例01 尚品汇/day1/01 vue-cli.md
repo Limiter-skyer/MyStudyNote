@@ -1,0 +1,12 @@
+node_modules文件夹：项目依赖文件夹
+public文件夹：一般放置静态资源，在此文件夹中的静态资源，webpack打包时会原封不动地放到dist文件夹中
+src文件夹(源码文件夹)：
+	assets文件夹：也是放静态资源的，但是在webpack打包时，会把静态资源当作一个模块，打包在js文件里面
+	components文件夹：非路由组件
+	App.vue：唯一根组件
+	main.js：程序的入口，最先执行
+.gitignore：git忽略，别什么都往github上传
+babel.config.js：babel配置
+jsconfig.json：
+package.json：记录了项目信息，依赖，如何运行
+package-lock.json：缓存性文件
