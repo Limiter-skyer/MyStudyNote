@@ -13,7 +13,196 @@
 关于this的指向，向来是个很玄学的东西，虽然大部分时间，this就是指向自己，但是出错就出错在那些小部分时间。
 解释this有两种方式，一是前人总结的经验，这种方式是好理解，坏处是仅仅是经验之谈，并不能覆盖所有情况。
 第二是从底层逻辑来解释，前文都是如此，本文也是如此，但是this的底层逻辑，实在过于难以理解，涉及了大量的，我不知道的知识。没有基础知识的支撑，直接去学搭建在这些基础知识上的高级知识，那可是相当痛苦的行为。
-但是求知就是这样，一开始就是要在黑暗中拓展的。
+
+# 经验之谈
+先走第一种方式来解释一下
+理念上，this指向“自己的上级”
+先举几个案例
+## 案例
+### 案例1
+全局情况下，this直接指向windows
+```js
+console.log(this)//windows
+
+var a = 1000;
+console.log(this.a)//1000
+```
+
+### 案例2
+全局环境下的函数中，this指向undefined，非严格模式会自动指向windows
+```js
+function fun(){
+	console.log(this)//windows，严格模式undefined
+}
+```
+
+### 案例3
+全局环境下的对象中，this指向windows
+```js
+var obj = {
+	a:this//windows
+}
+
+var arr = [1,2,this]//数组也是一种对象
+```
+对于案例1的拓展：声明在全局环境的变量比如obj，他们实际上都是在windows对象上的，即window.obj，那么在obj对象上的函数windows.obj.this，obj的this，指向的是obj的上级。
+
+### 案例4
+结合前面两个案例
+在对象中的函数中的this，指向对象
+```js
+var obj = {
+	a:1,
+	fun:function{
+		console.log(this)//obj
+	}
+}
+```
+即obj.fun().this，指向fun()的上级obj
+
+### 案例5
+把上一个案例再套娃套一层
+```js
+var obj = {
+	a:1,
+	b:function(){
+		function fun(){
+			console.log(this)//windows，严格模式下为undefined
+		}
+	}
+}
+```
+变成了obj.b().fun().this，this指向fun()的上级即b()，但可惜b()是个函数，**那么this会指向undefined**，如果是在非严格模式下，undefined会自动指向windows。
+这是一条新秩序。
+
+### 案例6
+那this是不是看着代码文字往上找层级就行了呢，不行，由于js的内存机制，**this指向哪，不取决于写在哪，而取决于在哪执行**
+```js
+function fun(){
+	console.log(this)
+}
+
+var obj = {
+	a:1,
+	b:fun
+}
+
+var t = fun
+
+obj.b()//obj
+t()//windows，严格模式下为undefined
+```
+而且js里的赋值，也就是改个指针，甚至可以这样写
+```js
+var obj = {
+	a:1,
+	b:function(){
+		console.log(this)
+	}
+}
+
+var t = obj.b
+
+obj.b()//obj
+t()//windows，严格模式下为undefined
+```
+二者完全等效
+
+### 构造函数
+作为构造函数，即涉及到类class的时候，才是this大放光彩的时候。
+**如果函数作为构造函数用，那么其中的this就代表它即将new出来的对象**
+
+class的出现，只是对构造函数的一种语法糖，本质上并没有变
+```js
+function Person(){
+	this.name = '张三',
+	this.age = 23
+}
+
+let zhangSan = new Person()
+```
+等效于
+```js
+class Person{
+    constructor(name,age){
+        this.name = name;
+        this.age = age
+    }
+}
+
+let zhangSan = new Person('张三',23)
+```
+原理
+new做了下面这些事:
+
+-   创建一个临时对象
+-   给临时对象绑定原型
+-   给临时对象对应属性赋值
+-   将临时对象return
+
+如果我不使用new，直接调用这个函数会怎样呢，大概率还是指向undefined
+
+
+### apply, call, bind
+这三个函数本来就是为了改变this指向而出现的。
+这些方法很奇特，都是跟在函数后面
+```js
+var obj = {
+    name:'张三',
+    age:23,
+    smile:true
+
+}
+
+function fun() {
+	console.log(this.name)
+}
+
+fun.apply(obj)//张三
+fun.call(obj)//张三
+fun.bind(obj)()//张三
+```
+只有一个参数的情况下，他们的功能都是把fun函数中的this全都稳定指向obj，当然bind明显返回了一个新的函数，除此之外一样。
+
+不一样的地方在于从第二个参数开始，第二个参数开始的参数，就是fun原函数需要的传参
+```js
+var person = {
+    name:'张三',
+    age:23,
+    like:'DNF'
+}
+
+function run(address,time) {
+    console.log(`
+    ${this.name}今年${this.age}岁了,
+    他每天${time},都会在${address}跑步,
+    当然,他最爱的还是${this.like}
+    `)
+}
+
+run.call(person,'中山陵','早晨6点')
+run.apply(person,['中山陵','早晨6点'])
+run.bind(person,'中山陵','早晨6点')
+```
+
+
+### 箭头函数
+箭头函数是一种不可以用apply和bind,call来改变this的函数。
+箭头函数会捕获其所在上下文的this值，作为自己的this值。
+拿这不是推翻了之前的，this的指向取决于在哪调用，而不是写在哪。并不是。
+出现这种情况的原因，本质上箭头函数只能赋值给一个有内存的变量。
+当这个变量在内存里建好后，this也就确定了，再调用也只能调用这个变量。
+
+
+## 总结
+我们从this指向的结果去推导原因，大概可以找到一条“this是指向自己的上级”这么一条因果线，当然，这不完全正确，甚至说完全不正确，只可以通过它初步了解一下。
+大部分情况下，this是指向windows和undefined的。而在非严格模式下，undefined会自动转向windows。
+而且无论如何，this都只能是“实在的对象”，比如Object，而不能是Function，如果遵从“自己的上级”这个规则指向了Function，那么就会转向undefined。
+这个“实在的存在”在解析底层逻辑的时候会详细列出来，放下不提。
+而且由于js的内存机制，this指向哪是调用的时候才决定。这个前几章特意说过也，this在执行上下文创建时才确定。
+
+# 底层
+现在我们从底层来解释一下
 
 如何判断this指向，在ES5规范里有详细解释，于是，我们要来学习ES5了
 先奉上 ECMAScript 5.1 规范地址：
@@ -24,7 +213,7 @@
 
 让我们开始了解规范吧！
 
-# Types
+## Types
 
 第8章Types，类型
 
@@ -41,7 +230,7 @@
 
 我看到这里就直接懵了，远远超出了我的知识范围，好在现在需要打交道的只有一个Reference类型。它与 this 的指向有着密切的关联。
 
-# Reference
+## Reference
 
 Reference类型，中文**引用**。
 
@@ -131,7 +320,7 @@ IsPropertyReference(V): 如果base value是一个Object，Number，String，Bool
 所以到底base value该怎么确定。
 目前看起来就是父级。如果V就是在一个对象A里，那么V的reference的base value，就是对象A。如果V就是老大，没有上级，那么base value 就是Enviroment Record
 
-# getValue
+## getValue
 
 除此之外，紧接着在 8.7.1 章规范中就讲了一个用于从 Reference 类型获取对应值的方法： GetValue。
 
@@ -154,7 +343,7 @@ GetValue 返回对象属性真正的值，但是要注意：
 
 这个很重要，这个很重要，这个很重要。
 
-# 如何确定this的值
+## 如何确定this的值
 
 关于 Reference 讲了那么多，为什么要讲 Reference 呢？到底 Reference 跟本文的主题 this 有哪些关联呢？如果你能耐心看完之前的内容，以下开始进入高能阶段：
 
@@ -186,9 +375,9 @@ GetValue 返回对象属性真正的值，但是要注意：
 2.3 如果 ref 不是 Reference，那么 this 的值为 undefined
 ```
 
-# 具体分析
+## 具体分析
 
-## 1.  计算 MemberExpression 的结果赋值给 ref
+### 1.  计算 MemberExpression 的结果赋值给 ref
 
 MenberExpression又是什么东西？？？？？
 **其实就是表达式**
@@ -230,7 +419,7 @@ foo.bar(); // MemberExpression 是 foo.bar
 
 根据现象猜本质，就是去掉最后一个括号。
 
-## 2.判断 ref 是不是一个 Reference 类型。
+### 2.判断 ref 是不是一个 Reference 类型。
 
 如何判断ref是不是Reference类型，比如`foo`，`foo()`，`foo.bar`，true or false？
 
@@ -257,7 +446,7 @@ console.log((false || foo.bar)());
 console.log((foo.bar, foo.bar)());
 ```
 
-### foo.bar()
+#### foo.bar()
 
 `foo.bar()`，的MemberExpression，是`foo.bar`，
 那么 foo.bar 是不是一个 Reference 呢？
